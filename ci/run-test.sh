@@ -31,7 +31,7 @@ RETCODE=$?
 TOC=`date +%s`
 RUNTIME=$((TOC-TIC))
 
-if [[ -v GITHUB_STEP_SUMMARY ]]; then
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     if [[ ! -s $GITHUB_STEP_SUMMARY ]]; then
         echo "# Test summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
