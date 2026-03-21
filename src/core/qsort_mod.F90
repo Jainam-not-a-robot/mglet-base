@@ -6,7 +6,7 @@
 ! This implementation also does not involve creating any temporary arrays
 ! when sorting
 MODULE qsort_mod
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_int, c_long_long, c_float, c_double
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_int, c_long_long, c_float, c_double, C_LOC, C_SIZEOF, C_NULL_PTR
 
     USE err_mod, ONLY: errr
     USE precision_mod, ONLY: intk, c_intk, int32, int64, real32, real64
@@ -238,7 +238,7 @@ END MODULE qsort_mod
 
 ! Old qsort implementation
 MODULE qsort_mod
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_LOC, C_FUNPTR, C_INT, &
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_LOC, C_FUNPTR, C_INT, C_SIZEOF, C_NULL_PTR, &
         C_F_POINTER, C_SIZE_T, C_FUNLOC, C_SIZEOF
 
     USE err_mod, ONLY: errr
@@ -265,7 +265,7 @@ MODULE qsort_mod
         ! https://sourceware.org/legacy-ml/libc-alpha/2008-12/msg00003.html
         ! Does not work on BSD (different interface)!
         SUBROUTINE qsort_r(ptr, count, size, comp, context) BIND(C)
-            USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_int, c_size_t, &
+            USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_int, c_size_t, C_LOC, C_SIZEOF, C_NULL_PTR, &
                 c_funptr
             TYPE(C_PTR), VALUE :: ptr
             INTEGER(c_size_t), INTENT(in), VALUE :: count
@@ -283,7 +283,7 @@ MODULE qsort_mod
         !
         ! Can be used as drop-in replacement if available
         INTEGER(c_int) FUNCTION qsort_s(ptr, count, size, comp, context) BIND(C)
-            USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_int, c_size_t, &
+            USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_int, c_size_t, C_LOC, C_SIZEOF, C_NULL_PTR, &
                 c_funptr
             TYPE(C_PTR), VALUE :: ptr
             INTEGER(c_size_t), INTENT(in), VALUE :: count

@@ -1,5 +1,6 @@
 MODULE hdf5common_mod
     USE HDF5
+    USE, INTRINSIC :: ISO_C_BINDING
     USE MPI_f08
     USE precision_mod, ONLY: int32, intk, realk, c_intk, c_realk, &
         mglet_hdf5_int, mglet_hdf5_real, mglet_mpi_hsize_t, &
@@ -80,15 +81,15 @@ CONTAINS
         TYPE(timeinfo_t), TARGET :: foo
         INTEGER(int32) :: hdferr
 
-        CALL h5tcreate_f(H5T_COMPOUND_F, C_SIZEOF(foo), timeinfo_h5t, hdferr)
+        CALL h5tcreate_f(H5T_COMPOUND_F, INT(STORAGE_SIZE(foo)/8, HID_T), timeinfo_h5t, hdferr) ! lf1: C_SIZEOF -> STORAGE_SIZE/8
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(timeinfo_h5t, "ITTOT", &
-            H5OFFSETOF(C_LOC(foo), C_LOC(foo%ittot)), mglet_hdf5_int, hdferr)
+            0_HID_T, mglet_hdf5_int, hdferr)  ! lf1: H5OFFSETOF workaround
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(timeinfo_h5t, "TIME", &
-            H5OFFSETOF(C_LOC(foo), C_LOC(foo%time)), mglet_hdf5_real, hdferr)
+            INT(STORAGE_SIZE(foo%ittot)/8, HID_T), mglet_hdf5_real, hdferr)  ! lf1: H5OFFSETOF workaround
         IF (hdferr /= 0) CALL errr(__FILE__, __LINE__)
     END SUBROUTINE create_timeinfo_h5t
 

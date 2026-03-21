@@ -2,7 +2,7 @@
 !
 ! Wrapper around MPI's shared memory module for easier allocation/deallocation
 MODULE shmem_mod
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_NULL_PTR
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_F_POINTER, C_NULL_PTR, C_LOC, C_SIZEOF, C_NULL_PTR
 
     USE MPI_f08
 

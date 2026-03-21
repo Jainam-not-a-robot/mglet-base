@@ -245,6 +245,7 @@ CONTAINS
 
 
     SUBROUTINE create_gridinfo_h5type(dtype)
+        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC, C_PTR
         ! Subrouitine arguments
         INTEGER(HID_T), INTENT(out) :: dtype
 
@@ -265,7 +266,7 @@ CONTAINS
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Gridinfo-table as compound data type
-        CALL h5tcreate_f(H5T_COMPOUND_F, C_SIZEOF(wdata), dtype, ierr)
+        CALL h5tcreate_f(H5T_COMPOUND_F, INT(STORAGE_SIZE(wdata)/8, 8), dtype, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "IGRID", &
@@ -403,6 +404,7 @@ CONTAINS
 
 
     SUBROUTINE create_bcond_h5type(dtype)
+        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC, C_PTR
         ! Subrouitine arguments
         INTEGER(HID_T), INTENT(out) :: dtype
 
@@ -431,7 +433,7 @@ CONTAINS
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         ! Bcond-table as compound data type
-        CALL h5tcreate_f(H5T_COMPOUND_F, C_SIZEOF(wdata), dtype, ierr)
+        CALL h5tcreate_f(H5T_COMPOUND_F, INT(STORAGE_SIZE(wdata)/8, 8), dtype, ierr)
         IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
 
         CALL h5tinsert_f(dtype, "NBOCD", &
@@ -506,6 +508,7 @@ CONTAINS
 
 
     SUBROUTINE write_gridinfo(parent_id, gridinfo, realprms, intprms, new_ngrid)
+        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC, C_PTR, C_NULL_PTR
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(inout) :: parent_id
         TYPE(gridinfo_t), INTENT(in), TARGET :: gridinfo(:)
@@ -566,6 +569,7 @@ CONTAINS
 
 
     SUBROUTINE write_bcondinfo(parent_id, bcond_arr, face, new_ngrid)
+        USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_LOC, C_PTR, C_NULL_PTR
         ! Subroutine arguments
         INTEGER(HID_T), INTENT(inout) :: parent_id
         TYPE(bcond_t), INTENT(IN), TARGET :: bcond_arr(:)

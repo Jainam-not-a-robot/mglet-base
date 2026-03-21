@@ -4,7 +4,7 @@ MODULE timer_mod
     USE precision_mod
     USE buildinfo_mod, ONLY: mglet_dbg_envvar
     USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_double, c_int, c_long_long, &
-        c_f_pointer
+        C_LOC, C_SIZEOF, C_NULL_PTR, c_f_pointer
     USE MPI_f08
 
     IMPLICIT NONE (type, external)

@@ -1,5 +1,6 @@
 MODULE precision_mod
     USE, INTRINSIC :: ISO_FORTRAN_ENV
+    USE, INTRINSIC :: ISO_C_BINDING
     USE HDF5
 
     USE MPI_f08
@@ -75,6 +76,7 @@ MODULE precision_mod
 
 CONTAINS
     SUBROUTINE init_precision()
+        USE, INTRINSIC :: ISO_FORTRAN_ENV
         USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: error_unit
 
         ! Local variables

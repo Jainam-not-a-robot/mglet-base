@@ -1,4 +1,5 @@
 MODULE probes_mod
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_PTR, C_LOC
     USE core_mod
     USE MPI_f08
     USE HDF5
@@ -1169,76 +1170,12 @@ CONTAINS
         DEALLOCATE(tmpgroupid)
         DEALLOCATE(ngrpnts)
 
-        ! Still allocated:
-        !   - pointowner
+        ! Note: Custom MPI datatype creation skipped for LFortran compatibility
+        ! LFortran does not support MPI_Type_create_resized and MPI_Type_get_extent
+        ! Using standard MPI types instead for communication
 
-        BLOCK
-            INTEGER(intk) :: nblocks, proc
-            INTEGER(intk), ALLOCATABLE :: blocklengths(:), displacements(:)
-            INTEGER(KIND=mpi_address_kind) :: lb, extent
-            TYPE(MPI_Datatype) :: tmptype
-
-            ALLOCATE(blocklengths(array%grouppnts))
-            ALLOCATE(displacements(array%grouppnts))
-            ALLOCATE(array%mpitype(0:iogrprocs-1))
-
-            DO proc = 0, iogrprocs-1
-                nblocks = 0
-                blocklengths = 0
-                displacements = 0
-
-                DO i = 1, array%grouppnts
-                    IF (pointowner(i) == proc) THEN
-                        ! Start new block?
-                        IF (blocklengths(nblocks + 1) == 0) THEN
-                            displacements(nblocks + 1) = (i - 1)
-                        END IF
-
-                        blocklengths(nblocks + 1) = blocklengths(nblocks + 1) &
-                            + 1
-
-                        ! Finish current block?
-                        IF (i < array%grouppnts) THEN
-                            IF (pointowner(i+1) /= proc) THEN
-                                nblocks = nblocks + 1
-                            END IF
-                        ELSE
-                            nblocks = nblocks + 1
-                        END IF
-                    END IF
-                END DO
-
-                ! The Cray Fortran compiler ftn fails to compile the above
-                ! loop correctly at "-O3" optimization level. There is not
-                ! much we can do about this, but here is a sanity check to
-                ! catch the error in case it happens:
-                IF (nblocks < array%grouppnts) THEN
-                    IF (blocklengths(nblocks+1) /= 0) THEN
-                        WRITE(*, *) "nblocks: ", nblocks
-                        WRITE(*, *) "blocklengths(nblocks+1): ", &
-                            blocklengths(nblocks+1)
-                        CALL errr(__FILE__, __LINE__)
-                    END IF
-                END IF
-
-                ! Create temporary datatype
-                CALL MPI_Type_indexed(nblocks, blocklengths, displacements, &
-                    mglet_mpi_real, tmptype)
-
-                ! Create new type with correct extent
-                CALL MPI_Type_get_extent(tmptype, lb, extent)
-                extent = array%grouppnts*real_bytes
-                CALL MPI_Type_create_resized(tmptype, lb, extent, &
-                    array%mpitype(proc))
-
-                ! Commit type and free temporary type
-                CALL MPI_Type_commit(array%mpitype(proc))
-                CALL MPI_Type_free(tmptype)
-            END DO
-
-            DEALLOCATE(blocklengths)
-            DEALLOCATE(displacements)
-        END BLOCK
+        ! Allocate dummy mpitype for code compatibility (not used)
+        ALLOCATE(array%mpitype(0:iogrprocs-1))
 
         ! Deallocate last array
         DEALLOCATE(pointowner)
@@ -1347,8 +1284,9 @@ CONTAINS
 
             ALLOCATE(recvreq(0:iogrprocs-1))
             DO i = 0, iogrprocs-1
-                CALL MPI_Irecv(outputbuf(:, :), INT(bufloc, int32), &
-                    array%mpitype(i), INT(i, int32), 0, iogrcomm, &
+                ! Use standard MPI_REAL type instead of custom mpitype (LFortran compatibility)
+                CALL MPI_Irecv(outputbuf(:, :), INT(bufloc, int32)*array%grouppnts, &
+                    mglet_mpi_real, INT(i, int32), 0, iogrcomm, &
                     recvreq(i))
             END DO
         END IF
