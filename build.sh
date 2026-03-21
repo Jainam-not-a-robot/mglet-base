@@ -198,15 +198,25 @@ create_lfortran_wrapper() {
     mkdir -p "$wrapper_dir"
     local wrapper="$wrapper_dir/lfortran"
 
-    # Write the real path into a sidecar the wrapper reads at runtime.
-    # This avoids hard-coding the path inside the script itself.
+    # Write the real lfortran path and the stubs dir into sidecars the
+    # wrapper reads at runtime. The stubs dir contains lfortran-format
+    # .mod files for MPI_f08 and HDF5 — it must appear before the system
+    # gfortran include dirs so lfortran finds our stubs first.
     echo "$real_lfortran" > "${wrapper}.real"
+    # Stubs live at <repo-root>/lfortran-stubs/ — resolve relative to build.sh
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "${repo_root}/lfortran-stubs" > "${wrapper}.stubs"
 
     cat > "$wrapper" << 'WRAPPER_EOF'
 #!/bin/bash
 # lfortran wrapper for mglet-base
-# Real lfortran path is stored in the .real sidecar next to this script.
+# Real lfortran path and stubs dir are stored in sidecars next to this script.
 REAL_LFORTRAN="$(cat "${BASH_SOURCE[0]}.real")"
+# lfortran-stubs/ contains lfortran-format .mod files for MPI_f08 and HDF5.
+# Must be first on the include path so lfortran finds them before the system
+# gfortran .mod files (which lfortran cannot deserialize).
+STUBS_DIR="$(cat "${BASH_SOURCE[0]}.stubs" 2>/dev/null)"
 
 # ── Locate lfortran's intrinsic .mod directory ────────────────────────────────
 # lfortran ships its own ISO_FORTRAN_ENV, ISO_C_BINDING etc. as pre-compiled
@@ -277,11 +287,14 @@ for arg in "$@"; do
     esac
 done
 
-if [ -n "$LFORTRAN_INTRINSIC_DIR" ]; then
-    exec "$REAL_LFORTRAN" -I"$LFORTRAN_INTRINSIC_DIR" "${args[@]}"
-else
-    exec "$REAL_LFORTRAN" "${args[@]}"
-fi
+# Build the include prefix: stubs dir first, then lfortran intrinsics.
+# Stubs must come before system MPI/HDF5 dirs so lfortran finds our
+# lfortran-format .mod files instead of the gfortran ones it can't read.
+prefix_includes=()
+[ -n "$STUBS_DIR"           ] && prefix_includes+=("-I${STUBS_DIR}")
+[ -n "$LFORTRAN_INTRINSIC_DIR" ] && prefix_includes+=("-I${LFORTRAN_INTRINSIC_DIR}")
+
+exec "$REAL_LFORTRAN" --legacy-array-sections "${prefix_includes[@]}" "${args[@]}"
 WRAPPER_EOF
 
     chmod +x "$wrapper"
@@ -391,6 +404,7 @@ do_lfortran() {
     ensure_deps
     detect_compilers
 
+    local repo_root; repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local wrapper; wrapper=$(create_lfortran_wrapper "$real_lfortran")
     info "Wrapper : $wrapper"
 
@@ -402,6 +416,19 @@ do_lfortran() {
         warning "Rebuild lfortran from source to regenerate them"
     fi
 
+
+    # Recompile stubs with current lfortran version
+    # (mod file format changes between lfortran versions)
+    local stubs_dir="${repo_root}/lfortran-stubs"
+    step "Compiling lfortran stubs"
+    pushd "$stubs_dir" > /dev/null
+    if "$real_lfortran" -c mpi_f08.f90 -o mpi_f08.o && \
+       "$real_lfortran" -c hdf5.f90 -o hdf5.o; then
+        success "Stubs compiled OK"
+    else
+        error "Stub compilation failed — check lfortran-stubs/*.f90"
+    fi
+    popd > /dev/null
     local cache_file; cache_file=$(write_lfortran_cmake_cache "$wrapper")
     info "CMake cache: $cache_file"
 

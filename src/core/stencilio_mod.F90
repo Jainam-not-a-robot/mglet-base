@@ -70,8 +70,8 @@ CONTAINS
                 INTEGER(intk), INTENT(IN) :: igrid
             END SUBROUTINE get_len
         END INTERFACE
-        OPTIONAL :: get_ptr, get_len
-
+        ! lf1: OPTIONAL removed from procedure dummies (LFortran ICE workaround)
+        ! get_ptr and get_len are now always required
         LOGICAL, INTENT(in), OPTIONAL :: indexlist
         LOGICAL, INTENT(in), OPTIONAL :: extend
         INTEGER(intk), INTENT(in), OPTIONAL :: ncmp
@@ -134,10 +134,10 @@ CONTAINS
             hdf5_filetype = mglet_hdf5_real
             mpi_dtype = mglet_mpi_real
         TYPE IS (INTEGER(intk))
-            IF (.NOT. PRESENT(get_len)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
-            IF (.NOT. PRESENT(get_ptr)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -157,10 +157,10 @@ CONTAINS
             END DO
             CALL select_int_kind(hdf5_filetype, maxarr, mpi_dtype, same_kind)
         TYPE IS (REAL(realk))
-            IF (.NOT. PRESENT(get_len)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
-            IF (.NOT. PRESENT(get_ptr)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
 
@@ -724,8 +724,8 @@ CONTAINS
                 INTEGER(intk), INTENT(IN) :: igrid
             END SUBROUTINE get_len
         END INTERFACE
-        OPTIONAL :: get_ptr, get_len
-
+        ! lf1: OPTIONAL removed from procedure dummies (LFortran ICE workaround)
+        ! get_ptr and get_len are now always required
         ! Local variables
         INTEGER(kind=intk), ALLOCATABLE :: stencilInfo(:, :), &
             grpStencilInfo(:, :)
@@ -763,19 +763,19 @@ CONTAINS
             hdf5_dtype = mglet_hdf5_real
             mpi_dtype = mglet_mpi_real
         TYPE IS (INTEGER(intk))
-            IF (.NOT. PRESENT(get_len)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
-            IF (.NOT. PRESENT(get_ptr)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
             hdf5_dtype = mglet_hdf5_int
             mpi_dtype = mglet_mpi_int
         TYPE IS (REAL(realk))
-            IF (.NOT. PRESENT(get_len)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
-            IF (.NOT. PRESENT(get_ptr)) THEN
+            IF (.FALSE.) THEN
                 CALL errr(__FILE__, __LINE__)
             END IF
             hdf5_dtype = mglet_hdf5_real
@@ -1544,12 +1544,12 @@ CONTAINS
         shape(1) = nElemsTot
         SELECT TYPE (list)
         TYPE IS (INTEGER(kind=int64))
-            CALL h5dread_f(dset_id, hdf5_dtype, list, shape, ierr, &
+            CALL h5dread_vl_f(dset_id, hdf5_dtype, list, shape, ierr, &
                 file_space_id=filespace, mem_space_id=memspace, &
                 xfer_prp=plist_id)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
         TYPE IS (REAL(kind=realk))
-            CALL h5dread_f(dset_id, hdf5_dtype, list, shape, ierr, &
+            CALL h5dread_vl_f(dset_id, hdf5_dtype, list, shape, ierr, &
                 file_space_id=filespace, mem_space_id=memspace, &
                 xfer_prp=plist_id)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
@@ -1889,6 +1889,7 @@ CONTAINS
 
         ! Local variables
         INTEGER(HID_T) :: hdf5_int16
+        INTEGER(intk) :: maxarr_local  ! lf1: local copy for MPI_Allreduce
 
         hdf5_int16 = h5kind_to_type(int16, H5_INTEGER_KIND)
         IF (hdf5_int16 < 0) THEN
@@ -1898,9 +1899,10 @@ CONTAINS
             RETURN
         END IF
 
-        CALL MPI_Allreduce(MPI_IN_PLACE, maxarr, 1, mpi_dtype, &
+        maxarr_local = maxarr
+        CALL MPI_Allreduce(maxarr_local, maxarr_local, 1, mpi_dtype, &
             MPI_MAX, MPI_COMM_WORLD)
-        IF (maxarr <= HUGE(1_int16)) THEN
+        IF (maxarr_local <= HUGE(1_int16)) THEN
             IF (PRESENT(same_kind)) THEN
                 IF (same_kind) THEN
                     hdf5_filetype = mglet_hdf5_int

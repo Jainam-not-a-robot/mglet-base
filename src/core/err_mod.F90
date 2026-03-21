@@ -43,9 +43,7 @@ CONTAINS
 #ifdef __INTEL_COMPILER
         CALL TRACEBACKQQ(user_exit_code=-1)
 #endif
-#ifdef __GFORTRAN__
-        CALL BACKTRACE()
-#endif
+! lf1 workaround: BACKTRACE() is gfortran-specific, removed for lfortran
     END SUBROUTINE err_print
 
 

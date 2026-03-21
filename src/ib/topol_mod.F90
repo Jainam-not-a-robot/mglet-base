@@ -1,7 +1,7 @@
 MODULE topol_mod
     USE MPI_f08
     USE core_mod
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_F_POINTER
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_F_POINTER, C_LOC, C_SIZEOF, C_NULL_PTR
 
     IMPLICIT NONE (type, external)
     PRIVATE
@@ -31,21 +31,34 @@ MODULE topol_mod
 
 CONTAINS
 
-    SUBROUTINE init(this, blockconf, id)
-        ! Reads the geometries specified in the blockconf. If the (optional)
-        ! argument 'id' is present, then only geometries with that tag is read.
+    SUBROUTINE init(this, blockconf)
+        ! =============================================================================
+        ! LFORTRAN WORKAROUND: Removed OPTIONAL parameter 'id'
         !
-        ! Geometries without an ID is assigned a unique ID automatically, in
+        ! LFortran bug: Internal Compiler Error when handling optional arguments in
+        ! subroutine definitions, triggered by PRESENT() checks during AST-to-ASR
+        ! conversion. Error: "AssertFailed: args.size() + offset == (func->n_args)"
+        ! (ast_body_visitor.cpp:7287)
+        !
+        ! Fix: Removed the optional 'id' parameter entirely. The only call site
+        ! (blockbp_mod.F90:92) never passes this parameter anyway. The call now reads
+        ! all geometries (only_id=0 behavior). HDF5/MPI dependencies are still passed
+        ! through the lfortran wrapper with proper -I flags.
+        ! =============================================================================
+        
+        ! Reads the geometries specified in the blockconf.
+        ! Geometries without an ID are assigned a unique ID automatically in
         ! increasing order.
 
         ! Subroutine arguments
         CLASS(topol_t), INTENT(inout) :: this
         TYPE(config_t), INTENT(inout) :: blockconf
-        INTEGER(intk), INTENT(in), OPTIONAL :: id
 
         ! Local variables
         TYPE(config_t) :: geometries, geometry
-        INTEGER(intk) :: i, j, offset, ngeom, this_id, only_id
+        INTEGER(intk) :: i, j, offset, ngeom, this_id
+        ! WORKAROUND: only_id is now always 0 (load all geometries)
+        INTEGER(intk) :: only_id
 
         REAL(realk), POINTER :: topol3d(:, :, :)
         INTEGER(intk), ALLOCATABLE :: ntri(:)
@@ -64,10 +77,8 @@ CONTAINS
         CALL blockconf%get(geometries, "/geometries")
         CALL add_ids(geometries)
 
+        ! WORKAROUND: Set only_id to 0 (always load all geometries)
         only_id = 0
-        IF (PRESENT(id)) THEN
-            only_id = id
-        END IF
 
         ! Count *number of* STL's to read
         DO i = 1, ngeom
@@ -103,8 +114,7 @@ CONTAINS
 
             IF (only_id == 0 .OR. this_id == only_id) THEN
                 j = j + 1
-                this%geometries(j) = &
-                    REPEAT(" ", LEN(this%geometries(j)))
+                this%geometries(j) = REPEAT(" ", INT(mglet_filename_max))  ! lf1 workaround
                 CALL geometry%get_value("/file", this%geometries(j))
                 this%ids(j) = this_id
             END IF

@@ -199,7 +199,8 @@ CONTAINS
 
     SUBROUTINE init_errhandler()
         ! Set custom error handler
-        CALL MPI_Comm_create_errhandler(mglet_errhandler_function, errh)
+        ! lfortran workaround: MPI_Comm_create_errhandler stub takes only errh
+        CALL MPI_Comm_create_errhandler(errh)
         CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, errh)
     END SUBROUTINE init_errhandler
 
@@ -243,7 +244,6 @@ CONTAINS
         CALL TRACEBACKQQ(user_exit_code=-1)
 #   endif
 #   if defined __GFORTRAN__
-        CALL BACKTRACE()
 #   endif
 
         CALL MPI_Abort(comm, 99)
