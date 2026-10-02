@@ -199,8 +199,7 @@ CONTAINS
 
     SUBROUTINE init_errhandler()
         ! Set custom error handler
-        ! lfortran workaround: MPI_Comm_create_errhandler stub takes only errh
-        CALL MPI_Comm_create_errhandler(errh)
+        CALL MPI_Comm_create_errhandler(mglet_errhandler_function, errh)
         CALL MPI_Comm_set_errhandler(MPI_COMM_WORLD, errh)
     END SUBROUTINE init_errhandler
 
