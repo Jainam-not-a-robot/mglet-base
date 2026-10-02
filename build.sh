@@ -187,7 +187,11 @@ if $preprocess; then
     # -P suppresses linemarker lines (# 1 "file.F90") that confuse lfortran.
     GCC_FOR_CPP="${CC:-gcc}"
     [ -x "/opt/homebrew/bin/gcc-15" ] && GCC_FOR_CPP="/opt/homebrew/bin/gcc-15"
+    # gcc defines __GFORTRAN__ in Fortran mode; undefine it and define
+    # __LFORTRAN__ instead, as lfortran's own preprocessor does, so
+    # gfortran-only code (BACKTRACE, SIGNAL, ...) is not compiled.
     exec "$GCC_FOR_CPP" -E -P -x f77-cpp-input -traditional-cpp -w \
+        -U__GFORTRAN__ -D__LFORTRAN__ \
         "${cpp_defines[@]}" "${cpp_includes[@]}" "$src_file" -o "$out_file"
 fi
 
@@ -199,6 +203,16 @@ for arg in "$@"; do
         -ffree-line-length-none|-fPIC|-fPIE|-fall-intrinsics|\
         -fopenmp-simd|-fpreprocessed)
             ;;
+        # gnu-* preset flags: lfortran's --std only knows lf/f23/legacy,
+        # and lfortran already rejects implicit typing by default
+        -std=*|-fimplicit-none)
+            ;;
+        # lfortran's -W means linker flags, so gfortran warning flags
+        # (-Wall, -Werror, -Wno-...) must not reach it; keep -Wl,...
+        -Wl,*) args+=("$arg") ;;
+        -W*)
+            ;;
+        -ffpe-trap=*) args+=("--fpe-trap=${arg#-ffpe-trap=}") ;;
         # lfortran supports -O2 but not necessarily -O3
         -O3|-O2|-O1) args+=("-O2") ;;
         # Fixed-form (F77-style) sources call procedures without explicit
@@ -359,7 +373,8 @@ do_lfortran() {
     step "Compiling lfortran stubs"
     pushd "$stubs_dir" > /dev/null
     if "$real_lfortran" -c mpi_f08.f90 -o mpi_f08.o && \
-       "$real_lfortran" -c hdf5.f90 -o hdf5.o; then
+       "$real_lfortran" -c hdf5.f90 -o hdf5.o && \
+       "$real_lfortran" -c ieee_exceptions.f90 -o ieee_exceptions.o; then
         success "Stubs compiled OK"
     else
         error "Stub compilation failed — check lfortran-stubs/*.f90"
