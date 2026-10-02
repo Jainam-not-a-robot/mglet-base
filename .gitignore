@@ -27,6 +27,7 @@
 *.out
 *.app
 
+temp_auto_push.bat
 
 # Editor and backup files
 *~
@@ -56,3 +57,5 @@ mglet
 # Build folder(s)
 build*
 
+.gitignore
+branch_structure.json

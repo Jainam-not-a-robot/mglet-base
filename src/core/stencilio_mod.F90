@@ -1544,12 +1544,12 @@ CONTAINS
         shape(1) = nElemsTot
         SELECT TYPE (list)
         TYPE IS (INTEGER(kind=int64))
-            CALL h5dread_vl_f(dset_id, hdf5_dtype, list, shape, ierr, &
+            CALL h5dread_f(dset_id, hdf5_dtype, list, shape, ierr, &
                 file_space_id=filespace, mem_space_id=memspace, &
                 xfer_prp=plist_id)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
         TYPE IS (REAL(kind=realk))
-            CALL h5dread_vl_f(dset_id, hdf5_dtype, list, shape, ierr, &
+            CALL h5dread_f(dset_id, hdf5_dtype, list, shape, ierr, &
                 file_space_id=filespace, mem_space_id=memspace, &
                 xfer_prp=plist_id)
             IF (ierr /= 0) CALL errr(__FILE__, __LINE__)
