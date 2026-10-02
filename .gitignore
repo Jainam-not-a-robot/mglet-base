@@ -55,5 +55,6 @@ mglet
 
 # Build folder(s)
 build*
+!build.sh
 out*
 
