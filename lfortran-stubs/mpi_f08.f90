@@ -101,6 +101,12 @@ MODULE mpi_f08
             INTEGER, INTENT(IN)    :: len
             TYPE(MPI_Datatype), INTENT(IN) :: datatype
         END SUBROUTINE
+
+        SUBROUTINE MPI_Comm_errhandler_function(comm, error_code)
+            IMPORT :: MPI_Comm
+            TYPE(MPI_Comm) :: comm
+            INTEGER        :: error_code
+        END SUBROUTINE
     END INTERFACE
 
     ! ── Subroutine / function interfaces ───────────────────────────────────────
@@ -166,8 +172,9 @@ MODULE mpi_f08
             INTEGER, OPTIONAL, INTENT(OUT) :: ierror
         END SUBROUTINE
 
-        SUBROUTINE MPI_Comm_create_errhandler(errhandler, ierror)
-            IMPORT :: MPI_Errhandler
+        SUBROUTINE MPI_Comm_create_errhandler(comm_errhandler_fn, errhandler, ierror)
+            IMPORT :: MPI_Errhandler, MPI_Comm_errhandler_function
+            PROCEDURE(MPI_Comm_errhandler_function) :: comm_errhandler_fn
             TYPE(MPI_Errhandler), INTENT(OUT) :: errhandler
             INTEGER, OPTIONAL, INTENT(OUT) :: ierror
         END SUBROUTINE
@@ -212,7 +219,7 @@ MODULE mpi_f08
 
         SUBROUTINE MPI_Bcast(buffer, count, datatype, root, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(INOUT) :: buffer
+            TYPE(*), DIMENSION(..),            INTENT(INOUT) :: buffer
             INTEGER,            INTENT(IN)    :: count
             TYPE(MPI_Datatype), INTENT(IN)    :: datatype
             INTEGER,            INTENT(IN)    :: root
@@ -222,7 +229,7 @@ MODULE mpi_f08
 
         SUBROUTINE MPI_Send(buf, count, datatype, dest, tag, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: buf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: buf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             INTEGER,            INTENT(IN)  :: dest
@@ -233,7 +240,7 @@ MODULE mpi_f08
 
         SUBROUTINE MPI_Recv(buf, count, datatype, source, tag, comm, status, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm, MPI_Status
-            TYPE(*),            INTENT(OUT) :: buf
+            TYPE(*), DIMENSION(..)                        :: buf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             INTEGER,            INTENT(IN)  :: source
@@ -245,7 +252,7 @@ MODULE mpi_f08
 
         SUBROUTINE MPI_Isend(buf, count, datatype, dest, tag, comm, request, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm, MPI_Request
-            TYPE(*),            INTENT(IN)  :: buf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: buf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             INTEGER,            INTENT(IN)  :: dest
@@ -257,7 +264,7 @@ MODULE mpi_f08
 
         SUBROUTINE MPI_Irecv(buf, count, datatype, source, tag, comm, request, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm, MPI_Request
-            TYPE(*),            INTENT(OUT) :: buf
+            TYPE(*), DIMENSION(..)                        :: buf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             INTEGER,            INTENT(IN)  :: source
@@ -293,8 +300,8 @@ MODULE mpi_f08
 
         SUBROUTINE MPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Op, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             TYPE(MPI_Op),       INTENT(IN)  :: op
@@ -305,8 +312,8 @@ MODULE mpi_f08
 
         SUBROUTINE MPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Op, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             TYPE(MPI_Op),       INTENT(IN)  :: op
@@ -317,10 +324,10 @@ MODULE mpi_f08
         SUBROUTINE MPI_Gather(sendbuf, sendcount, sendtype, recvbuf, &
                               recvcount, recvtype, root, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcount
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcount
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
             INTEGER,            INTENT(IN)  :: root
@@ -331,10 +338,10 @@ MODULE mpi_f08
         SUBROUTINE MPI_Gatherv(sendbuf, sendcount, sendtype, recvbuf, &
                                recvcounts, displs, recvtype, root, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcount
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcounts(*)
             INTEGER,            INTENT(IN)  :: displs(*)
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
@@ -346,10 +353,10 @@ MODULE mpi_f08
         SUBROUTINE MPI_Scatter(sendbuf, sendcount, sendtype, recvbuf, &
                                recvcount, recvtype, root, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcount
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcount
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
             INTEGER,            INTENT(IN)  :: root
@@ -360,11 +367,11 @@ MODULE mpi_f08
         SUBROUTINE MPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, &
                                 recvcount, recvtype, root, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcounts(*)
             INTEGER,            INTENT(IN)  :: displs(*)
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcount
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
             INTEGER,            INTENT(IN)  :: root
@@ -375,10 +382,10 @@ MODULE mpi_f08
         SUBROUTINE MPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, &
                                  recvcount, recvtype, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcount
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcount
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
             TYPE(MPI_Comm),     INTENT(IN)  :: comm
@@ -388,10 +395,10 @@ MODULE mpi_f08
         SUBROUTINE MPI_Allgatherv(sendbuf, sendcount, sendtype, recvbuf, &
                                   recvcounts, displs, recvtype, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcount
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcounts(*)
             INTEGER,            INTENT(IN)  :: displs(*)
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
@@ -402,10 +409,10 @@ MODULE mpi_f08
         SUBROUTINE MPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, &
                                 recvcount, recvtype, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcount
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcount
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
             TYPE(MPI_Comm),     INTENT(IN)  :: comm
@@ -415,11 +422,11 @@ MODULE mpi_f08
         SUBROUTINE MPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, &
                                  recvbuf, recvcounts, rdispls, recvtype, comm, ierror)
             IMPORT :: MPI_Datatype, MPI_Comm
-            TYPE(*),            INTENT(IN)  :: sendbuf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: sendbuf
             INTEGER,            INTENT(IN)  :: sendcounts(*)
             INTEGER,            INTENT(IN)  :: sdispls(*)
             TYPE(MPI_Datatype), INTENT(IN)  :: sendtype
-            TYPE(*),            INTENT(OUT) :: recvbuf
+            TYPE(*), DIMENSION(..)                        :: recvbuf
             INTEGER,            INTENT(IN)  :: recvcounts(*)
             INTEGER,            INTENT(IN)  :: rdispls(*)
             TYPE(MPI_Datatype), INTENT(IN)  :: recvtype
@@ -428,7 +435,7 @@ MODULE mpi_f08
         END SUBROUTINE
 
         SUBROUTINE MPI_Get_address(location, address, ierror)
-            TYPE(*),    INTENT(IN)  :: location
+            TYPE(*), DIMENSION(..),    INTENT(IN)  :: location
             INTEGER(8), INTENT(OUT) :: address
             INTEGER, OPTIONAL, INTENT(OUT) :: ierror
         END SUBROUTINE
@@ -529,7 +536,7 @@ MODULE mpi_f08
             IMPORT :: MPI_Datatype, MPI_Status
             INTEGER,            INTENT(IN)  :: fh
             INTEGER,            INTENT(IN)  :: offset
-            TYPE(*),            INTENT(OUT) :: buf
+            TYPE(*), DIMENSION(..)                        :: buf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             TYPE(MPI_Status),   INTENT(OUT) :: status
@@ -540,7 +547,7 @@ MODULE mpi_f08
             IMPORT :: MPI_Datatype, MPI_Status
             INTEGER,            INTENT(IN)  :: fh
             INTEGER,            INTENT(IN)  :: offset
-            TYPE(*),            INTENT(IN)  :: buf
+            TYPE(*), DIMENSION(..),            INTENT(IN)  :: buf
             INTEGER,            INTENT(IN)  :: count
             TYPE(MPI_Datatype), INTENT(IN)  :: datatype
             TYPE(MPI_Status),   INTENT(OUT) :: status

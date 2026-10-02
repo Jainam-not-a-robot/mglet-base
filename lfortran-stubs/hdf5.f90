@@ -7,7 +7,7 @@
 ! Actual HDF5 calls still link against the system HDF5 library.
 ! =============================================================================
 MODULE hdf5
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_int64_t, C_PTR, C_SIZE_T
+    USE, INTRINSIC :: ISO_C_BINDING
     IMPLICIT NONE
 
     ! ── Kind parameters ────────────────────────────────────────────────────────
@@ -171,37 +171,45 @@ MODULE hdf5
             INTEGER,        INTENT(OUT) :: hdferr
         END SUBROUTINE
 
-        SUBROUTINE h5dread_f(dset_id, mem_type_id, buf, hdferr, &
-                             mem_space_id, file_space_id, xfer_prp)
+    END INTERFACE
+
+    ! h5dread_f is generic in HDF5: a pointer form without dims and
+    ! typed array forms that take dims
+    INTERFACE h5dread_f
+        SUBROUTINE h5dread_ptr(dset_id, mem_type_id, buf, hdferr, &
+                               mem_space_id, file_space_id, xfer_prp)
             IMPORT :: HID_T
             INTEGER(HID_T),   INTENT(IN)            :: dset_id
             INTEGER(HID_T),   INTENT(IN)            :: mem_type_id
-            TYPE(*),          INTENT(OUT)           :: buf
+            TYPE(*), DIMENSION(..)                                :: buf
             INTEGER,          INTENT(OUT)           :: hdferr
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: mem_space_id
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: file_space_id
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: xfer_prp
         END SUBROUTINE
-        SUBROUTINE h5dread_vl_f(dset_id, mem_type_id, buf, dims, hdferr, &
-                             mem_space_id, file_space_id, xfer_prp)
+
+        SUBROUTINE h5dread_array(dset_id, mem_type_id, buf, dims, hdferr, &
+                                 mem_space_id, file_space_id, xfer_prp)
             IMPORT :: HID_T, HSIZE_T
             INTEGER(HID_T),   INTENT(IN)            :: dset_id
             INTEGER(HID_T),   INTENT(IN)            :: mem_type_id
-            TYPE(*),          INTENT(OUT)           :: buf
+            TYPE(*), DIMENSION(..)                                :: buf
             INTEGER(HSIZE_T), INTENT(IN)            :: dims(:)
             INTEGER,          INTENT(OUT)           :: hdferr
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: mem_space_id
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: file_space_id
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: xfer_prp
         END SUBROUTINE
+    END INTERFACE
 
+    INTERFACE
 
         SUBROUTINE h5dwrite_f(dset_id, mem_type_id, buf, hdferr, &
                                mem_space_id, file_space_id, xfer_prp)
             IMPORT :: HID_T
             INTEGER(HID_T),   INTENT(IN)            :: dset_id
             INTEGER(HID_T),   INTENT(IN)            :: mem_type_id
-            TYPE(*),          INTENT(IN)            :: buf
+            TYPE(*), DIMENSION(..),          INTENT(IN)            :: buf
             INTEGER,          INTENT(OUT)           :: hdferr
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: mem_space_id
             INTEGER(HID_T),   INTENT(IN),  OPTIONAL :: file_space_id
@@ -337,7 +345,7 @@ MODULE hdf5
             IMPORT :: HID_T
             INTEGER(HID_T),   INTENT(IN)  :: attr_id
             INTEGER(HID_T),   INTENT(IN)  :: memtype_id
-            TYPE(*),          INTENT(OUT) :: buf
+            TYPE(*), DIMENSION(..)                      :: buf
             INTEGER,          INTENT(OUT) :: hdferr
         END SUBROUTINE
 
@@ -345,7 +353,7 @@ MODULE hdf5
             IMPORT :: HID_T
             INTEGER(HID_T),   INTENT(IN)  :: attr_id
             INTEGER(HID_T),   INTENT(IN)  :: memtype_id
-            TYPE(*),          INTENT(IN)  :: buf
+            TYPE(*), DIMENSION(..),          INTENT(IN)  :: buf
             INTEGER,          INTENT(OUT) :: hdferr
         END SUBROUTINE
 
@@ -612,7 +620,7 @@ MODULE hdf5
         SUBROUTINE h5oget_info_f(object_id, object_info, hdferr)
             IMPORT :: HID_T
             INTEGER(HID_T), INTENT(IN)  :: object_id
-            TYPE(*),        INTENT(OUT) :: object_info
+            TYPE(*), DIMENSION(..)                    :: object_info
             INTEGER,        INTENT(OUT) :: hdferr
         END SUBROUTINE
 
