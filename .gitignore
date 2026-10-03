@@ -28,6 +28,7 @@
 *.app
 
 
+temp_auto_push.bat
 # Editor and backup files
 *~
 .*~
@@ -58,3 +59,5 @@ build*
 !build.sh
 out*
 
+.gitignore
+branch_structure.json

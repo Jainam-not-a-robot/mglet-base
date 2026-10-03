@@ -6,7 +6,7 @@
 ! Actual MPI calls still link against the system Open MPI library.
 ! =============================================================================
 MODULE mpi_f08
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr
+    USE, INTRINSIC :: ISO_C_BINDING
     IMPLICIT NONE
 
     ! ── Derived types ──────────────────────────────────────────────────────────
@@ -501,6 +501,23 @@ MODULE mpi_f08
             IMPORT :: MPI_Datatype
             TYPE(MPI_Datatype), INTENT(INOUT) :: datatype
             INTEGER, OPTIONAL, INTENT(OUT) :: ierror
+        END SUBROUTINE
+
+        SUBROUTINE MPI_Type_get_extent(datatype, lb, extent, ierror)
+            IMPORT :: MPI_Datatype, MPI_ADDRESS_KIND
+            TYPE(MPI_Datatype),             INTENT(IN)  :: datatype
+            INTEGER(KIND=MPI_ADDRESS_KIND), INTENT(OUT) :: lb
+            INTEGER(KIND=MPI_ADDRESS_KIND), INTENT(OUT) :: extent
+            INTEGER, OPTIONAL,              INTENT(OUT) :: ierror
+        END SUBROUTINE
+
+        SUBROUTINE MPI_Type_create_resized(oldtype, lb, extent, newtype, ierror)
+            IMPORT :: MPI_Datatype, MPI_ADDRESS_KIND
+            TYPE(MPI_Datatype),             INTENT(IN)  :: oldtype
+            INTEGER(KIND=MPI_ADDRESS_KIND), INTENT(IN)  :: lb
+            INTEGER(KIND=MPI_ADDRESS_KIND), INTENT(IN)  :: extent
+            TYPE(MPI_Datatype),             INTENT(OUT) :: newtype
+            INTEGER, OPTIONAL,              INTENT(OUT) :: ierror
         END SUBROUTINE
 
         SUBROUTINE MPI_Op_create(user_fn, commute, op, ierror)
