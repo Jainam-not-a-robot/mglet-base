@@ -92,14 +92,14 @@ MODULE mpi_f08
     ! mglet passes it as the sendbuf argument in MPI_Allreduce etc.
     INTEGER, PARAMETER :: MPI_IN_PLACE = -1
 
-    ! ── Abstract interface for user-defined MPI error handler ─────────────────
+    ! ── Abstract interface for user-defined MPI reduction operations ──────────
+    ! Matches the MPI-3.1 mpi_f08 definition used by MPI_Op_create.
     ABSTRACT INTERFACE
         SUBROUTINE MPI_User_function(invec, inoutvec, len, datatype)
-            IMPORT :: MPI_Datatype
-            TYPE(*), INTENT(IN)    :: invec
-            TYPE(*), INTENT(INOUT) :: inoutvec
-            INTEGER, INTENT(IN)    :: len
-            TYPE(MPI_Datatype), INTENT(IN) :: datatype
+            IMPORT :: MPI_Datatype, c_ptr
+            TYPE(c_ptr), VALUE :: invec, inoutvec
+            INTEGER :: len
+            TYPE(MPI_Datatype) :: datatype
         END SUBROUTINE
 
         SUBROUTINE MPI_Comm_errhandler_function(comm, error_code)
@@ -521,8 +521,8 @@ MODULE mpi_f08
         END SUBROUTINE
 
         SUBROUTINE MPI_Op_create(user_fn, commute, op, ierror)
-            IMPORT :: MPI_Op
-            INTEGER,      INTENT(IN)  :: user_fn
+            IMPORT :: MPI_Op, MPI_User_function
+            PROCEDURE(MPI_User_function) :: user_fn
             LOGICAL,      INTENT(IN)  :: commute
             TYPE(MPI_Op), INTENT(OUT) :: op
             INTEGER, OPTIONAL, INTENT(OUT) :: ierror
