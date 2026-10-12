@@ -2,7 +2,9 @@
 # =============================================================================
 # build.sh - Build mglet-base with lfortran (default) or gfortran
 #
-# Install dependencies once beforehand with ./install_deps.sh
+# Install dependencies once beforehand with ./install_deps.sh, or create and
+# activate the conda env instead:
+#   conda env create -f environment.yml && conda activate mglet
 #
 # Usage:
 #   ./build.sh               # build with lfortran  (default)
@@ -89,8 +91,23 @@ find_iso_dir() {
     error "ISO_Fortran_binding.h not found — is gfortran installed?"
 }
 
+# lfortran ships its own ISO_Fortran_binding.h (CFI_allocate & co. are
+# inline there and match lfortran's descriptors). C/C++ code linked with
+# lfortran must use it, not gfortran's, whose CFI_* live in libgfortran.
+find_lfortran_iso_dir() {
+    local lf_bin; lf_bin="$(dirname "$1")"
+    local d
+    for d in "$lf_bin/../libasr/runtime" "$lf_bin/../include/lfortran"; do
+        [ -f "${d}/ISO_Fortran_binding.h" ] && { (cd "$d" && pwd); return; }
+    done
+    error "lfortran's ISO_Fortran_binding.h not found next to $1"
+}
+
 # ── Find HDF5 root ────────────────────────────────────────────────────────────
 find_hdf5_root() {
+    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/h5pfc" ]; then
+        echo "$CONDA_PREFIX"; return
+    fi
     case "$OS" in
       macos)
         [ -d /opt/homebrew/opt/hdf5-mpi ] && echo "/opt/homebrew/opt/hdf5-mpi" && return
@@ -102,6 +119,99 @@ find_hdf5_root() {
         ;;
       *) echo "" ;;   # let cmake find it
     esac
+}
+
+# ── Build HDF5's Fortran modules with lfortran ────────────────────────────────
+# The system libhdf5_fortran was built by gfortran: its module procedures use
+# gfortran's name mangling and calling convention, and its .mod files are
+# gfortran-format, so lfortran cannot use them. Its h5*_c wrappers are plain C,
+# though. So we compile HDF5's own fortran/src/*.F90, for the same HDF5 version
+# as the system library, with lfortran, and link against the system
+# libhdf5_fortran (for the C wrappers) and libhdf5 as usual.
+# Prints the directory holding the lfortran-format .mod files.
+build_lfortran_hdf5_mods() {
+    local real_lfortran="$1" work_dir="$2"
+    local h5cfg ver
+    h5cfg=$(h5pfc -showconfig 2>/dev/null || h5pcc -showconfig 2>/dev/null)
+    ver=$(echo "$h5cfg" | awk -F': *' '/HDF5 Version/ {print $2; exit}')
+    [ -n "$ver" ] || error "cannot determine the system HDF5 version (h5pfc -showconfig)"
+    local parallel=""
+    echo "$h5cfg" | grep -q "Parallel HDF5: yes" && parallel="--enable-parallel"
+
+    local src="$work_dir/hdf5-$ver" gen="$work_dir/gen-$ver" mods="$work_dir/mods"
+    mkdir -p "$work_dir"
+
+    if [ ! -d "$src" ]; then
+        local tarball="$work_dir/hdf5-$ver.tar.gz"
+        info "Downloading HDF5 $ver source" >&2
+        curl -fsSL -o "$tarball" \
+            "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${ver%.*}/hdf5-$ver/src/hdf5-$ver.tar.gz" \
+            || error "HDF5 $ver source download failed"
+        tar xzf "$tarball" -C "$work_dir" || error "cannot extract $tarball"
+    fi
+
+    # Configure-time Fortran sources (kind lists, H5_gen.F90, ...). These are
+    # generated with the MPI compilers on PATH, then restricted to the kinds
+    # lfortran supports: integer 1,2,4,8 and real 4,8.
+    if [ ! -f "$gen/fortran/src/H5_gen.F90" ]; then
+        info "Generating HDF5 $ver Fortran sources" >&2
+        mkdir -p "$gen"
+        ( cd "$gen" && CC="${MPICC:-$(command -v mpicc)}" FC="${MPIFC:-$(command -v mpif90)}" \
+            "$src/configure" --enable-fortran $parallel --disable-tests \
+            --disable-tools --disable-hl --disable-cxx ) > "$gen/configure.log" 2>&1 \
+            || error "HDF5 configure failed — see $gen/configure.log"
+        local fsrc="$gen/fortran/src"
+        sed -i -e 's/^\(#define H5_FORTRAN_NUM_INTEGER_KINDS\) .*/\1 4/' \
+            -e 's/^\(#define H5_FORTRAN_INTEGER_KINDS\) .*/\1 {1,2,4,8}/' \
+            -e 's/^\(#define H5_FORTRAN_INTEGER_KINDS_SIZEOF\) .*/\1 {1,2,4,8}/' \
+            -e 's/^\(#define H5_FORTRAN_REAL_KINDS\) .*/\1 {4,8}/' \
+            -e 's/^\(#define H5_FORTRAN_REAL_KINDS_SIZEOF\) .*/\1 {4,8}/' \
+            -e '/H5_HAVE_Fortran_INTEGER_SIZEOF_16/d' \
+            -e '/H5_FORTRAN_HAVE_C_LONG_DOUBLE/d' \
+            -e '/H5_FORTRAN_C_LONG_DOUBLE_IS_UNIQUE/d' "$fsrc/H5fort_type_defines.h"
+        sed -i -e 's/num_rkinds = [0-9]*/num_rkinds = 2/' \
+            -e 's|rkind = (/[^/]*/)|rkind = (/4,8/)|' \
+            -e 's|rkind_sizeof = (/[^/]*/)|rkind_sizeof = (/4,8/)|' \
+            -e 's/num_ikinds = [0-9]*/num_ikinds = 4/' \
+            -e 's|ikind = (/[^/]*/)|ikind = (/1,2,4,8/)|' \
+            -e '/H5_HAVE_Fortran_INTEGER_SIZEOF_16/d' \
+            -e '/H5_FORTRAN_HAVE_C_LONG_DOUBLE/d' \
+            -e '/H5_FORTRAN_C_LONG_DOUBLE_IS_UNIQUE/d' \
+            -e '/H5_HAVE_FLOAT128/d' "$fsrc/H5config_f.inc"
+        make -C "$fsrc" H5fortran_types.F90 H5_gen.F90 > "$gen/generate.log" 2>&1 \
+            || error "HDF5 Fortran source generation failed — see $gen/generate.log"
+    fi
+
+    # The modules are always rebuilt: the .mod format changes between lfortran
+    # versions. Compile in dependency order by retrying files whose used
+    # modules are not built yet.
+    info "Compiling HDF5 $ver Fortran modules with lfortran" >&2
+    rm -rf "$mods"; mkdir -p "$mods"
+    local fsrc="$src/fortran/src" gsrc="$gen/fortran/src"
+    local todo="$gsrc/H5fortran_types.F90 $fsrc/H5f90global.F90 $fsrc/H5fortkit.F90
+        $fsrc/H5_ff.F90 $fsrc/H5Aff.F90 $fsrc/H5Dff.F90 $fsrc/H5Eff.F90 $fsrc/H5Fff.F90
+        $fsrc/H5Gff.F90 $fsrc/H5Iff.F90 $fsrc/H5Lff.F90 $fsrc/H5Off.F90 $fsrc/H5Pff.F90
+        $fsrc/H5Rff.F90 $fsrc/H5Sff.F90 $fsrc/H5Tff.F90 $fsrc/H5Zff.F90 $gsrc/H5_gen.F90
+        $(ls "$fsrc"/H5VLff.F90 2>/dev/null)
+        $fsrc/HDF5.F90"
+    local f b next progress
+    while [ -n "$todo" ]; do
+        next=""; progress=0
+        for f in $todo; do
+            b=$(basename "$f" .F90)
+            if ( cd "$mods" && "$real_lfortran" --cpp --no-color -I"$gsrc" -I"$fsrc" \
+                    -c "$f" -o "$b.o" ) > "$mods/$b.log" 2>&1; then
+                progress=1
+            elif grep -q "modfile was not found" "$mods/$b.log"; then
+                next="$next $f"
+            else
+                error "lfortran failed on HDF5 $b.F90 — see $mods/$b.log"
+            fi
+        done
+        [ "$progress" -eq 1 ] || error "HDF5 Fortran modules have unresolved dependencies:$next"
+        todo="$next"
+    done
+    echo "$mods"
 }
 
 # ── Create lfortran wrapper ───────────────────────────────────────────────────
@@ -125,6 +235,8 @@ create_lfortran_wrapper() {
     local repo_root
     repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     echo "${repo_root}/lfortran-stubs" > "${wrapper}.stubs"
+    # lfortran-compiled HDF5 modules (see build_lfortran_hdf5_mods)
+    echo "${repo_root}/lfortran-hdf5/mods" > "${wrapper}.hdf5"
 
     cat > "$wrapper" << 'WRAPPER_EOF'
 #!/bin/bash
@@ -135,6 +247,8 @@ REAL_LFORTRAN="$(cat "${BASH_SOURCE[0]}.real")"
 # Must be first on the include path so lfortran finds them before the system
 # gfortran .mod files (which lfortran cannot deserialize).
 STUBS_DIR="$(cat "${BASH_SOURCE[0]}.stubs" 2>/dev/null)"
+# HDF5's own Fortran modules, compiled with lfortran.
+HDF5_MODS_DIR="$(cat "${BASH_SOURCE[0]}.hdf5" 2>/dev/null)"
 
 # ── Locate lfortran's intrinsic .mod directory ────────────────────────────────
 # lfortran ships its own ISO_FORTRAN_ENV, ISO_C_BINDING etc. as pre-compiled
@@ -228,10 +342,14 @@ done
 # Stubs must come before system MPI/HDF5 dirs so lfortran finds our
 # lfortran-format .mod files instead of the gfortran ones it can't read.
 prefix_includes=()
+[ -n "$HDF5_MODS_DIR"       ] && prefix_includes+=("-I${HDF5_MODS_DIR}")
 [ -n "$STUBS_DIR"           ] && prefix_includes+=("-I${STUBS_DIR}")
 [ -n "$LFORTRAN_INTRINSIC_DIR" ] && prefix_includes+=("-I${LFORTRAN_INTRINSIC_DIR}")
 
-exec "$REAL_LFORTRAN" --legacy-array-sections "${prefix_includes[@]}" "${args[@]}"
+# Without a source file lfortran starts its interactive REPL, so a CMake
+# probe such as `-Wl,--help` would wait forever on a terminal. A compile or
+# link never reads stdin.
+exec "$REAL_LFORTRAN" --legacy-array-sections "${prefix_includes[@]}" "${args[@]}" < /dev/null
 WRAPPER_EOF
 
     chmod +x "$wrapper"
@@ -315,9 +433,10 @@ do_configure() {
     local fortran_compiler="$1"   # real gfortran path or lfortran wrapper path
     local preset="${PRESET:-gnu-release}"
     local cmake_init_cache="$2"   # optional: path to -C cache file (lfortran only)
+    local iso_dir="$3"            # optional: ISO_Fortran_binding.h dir (lfortran only)
 
-    local iso_dir hdf5_root
-    iso_dir=$(find_iso_dir)
+    local hdf5_root
+    [ -n "$iso_dir" ] || iso_dir=$(find_iso_dir)
     hdf5_root=$(find_hdf5_root)
 
     step "Configuring ($preset) — FC: $fortran_compiler"
@@ -373,17 +492,27 @@ do_lfortran() {
     step "Compiling lfortran stubs"
     pushd "$stubs_dir" > /dev/null
     if "$real_lfortran" -c mpi_f08.f90 -o mpi_f08.o && \
-       "$real_lfortran" -c hdf5.f90 -o hdf5.o && \
        "$real_lfortran" -c ieee_exceptions.f90 -o ieee_exceptions.o; then
         success "Stubs compiled OK"
     else
         error "Stub compilation failed — check lfortran-stubs/*.f90"
     fi
     popd > /dev/null
+
+    # The real HDF5 Fortran modules replace the old hdf5.f90 stub; their
+    # directory comes first on the wrapper's include path.
+    step "Building HDF5 Fortran modules with lfortran"
+    local hdf5_mods
+    hdf5_mods=$(build_lfortran_hdf5_mods "$real_lfortran" "${repo_root}/lfortran-hdf5") || exit 1
+    success "HDF5 Fortran modules: $hdf5_mods"
+
     local cache_file; cache_file=$(write_lfortran_cmake_cache "$wrapper")
     info "CMake cache: $cache_file"
 
-    do_configure "$wrapper" "$cache_file"
+    local lf_iso_dir; lf_iso_dir=$(find_lfortran_iso_dir "$real_lfortran")
+    info "ISO_Fortran_binding.h: $lf_iso_dir"
+
+    do_configure "$wrapper" "$cache_file" "$lf_iso_dir"
     ninja -C build -j"$NPROC"
     success "lfortran build complete → build/src/mglet"
 }

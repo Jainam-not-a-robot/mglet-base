@@ -29,6 +29,7 @@
 
 
 # Editor and backup files
+temp_auto_push.bat
 *~
 .*~
 *.bak
@@ -58,3 +59,8 @@ build*
 !build.sh
 out*
 
+
+# lfortran-compiled HDF5 Fortran modules (build.sh)
+lfortran-hdf5/
+.gitignore
+branch_structure.json
