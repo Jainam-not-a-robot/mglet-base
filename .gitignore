@@ -58,3 +58,6 @@ build*
 !build.sh
 out*
 
+
+# lfortran-compiled HDF5 Fortran modules (build.sh)
+lfortran-hdf5/

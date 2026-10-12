@@ -1,0 +1,32 @@
+# Conda environment for building mglet-base with lfortran (or gfortran).
+#
+# MPI, HDF5 and everything they link against (curl, OpenSSL, zlib) come from
+# this one environment, so the link never mixes system and conda libraries.
+# Compilers are not installed here: the system gcc/gfortran are used, because
+# lfortran and its runtime are built against the system glibc and conda's
+# compilers bring their own (older) sysroot. lfortran itself is not installed
+# either: put its bin/ directory on PATH.
+#
+#   conda env create -f environment.yml
+#   conda activate mglet
+#   ./build.sh
+name: mglet
+channels:
+  - conda-forge
+dependencies:
+  # mglet needs HDF5 >= 1.10.7 (H5F_LIBVER_V110_F). conda-forge has no such
+  # 1.10 release, and 1.12 keeps the Fortran sources build_lfortran_hdf5_mods
+  # compiles. This build is linked against libgfortran5, so the system
+  # gfortran can read its .mod files.
+  - hdf5=1.12.2=mpi_openmpi_*
+  - openmpi=4.1
+  - cmake
+  - ninja
+  - make
+  - curl
+variables:
+  # Open MPI's wrappers default to the conda-build compiler names; use the
+  # system compilers instead.
+  OMPI_CC: gcc
+  OMPI_CXX: g++
+  OMPI_FC: gfortran
