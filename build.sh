@@ -363,6 +363,12 @@ WRAPPER_EOF
 # project() call fires.
 write_lfortran_cmake_cache() {
     local wrapper="$1"
+    local mpi_shim="$2"   # mpi_f08_shim.o, linked into every Fortran executable
+    local mpicc="$3"
+    # The shim calls Open MPI's C API (libmpi) and the Fortran callback
+    # registration of libmpi_mpifh.
+    local mpi_libdir
+    mpi_libdir=$("$mpicc" --showme:libdirs 2>/dev/null | awk '{print $1}')
     local mpifort
     mpifort=$(command -v mpifort 2>/dev/null || command -v mpif90 2>/dev/null || true)
     local mpi_link=""
@@ -393,6 +399,7 @@ set(CMAKE_Fortran_COMPILER_FORCED  TRUE           CACHE BOOL     "" FORCE)
 set(CMAKE_Fortran_COMPILER_WORKS   TRUE           CACHE BOOL     "" FORCE)
 set(CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES   "lfortran_runtime;m"   CACHE STRING "" FORCE)
 set(CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES "${lf_runtime_dir}"    CACHE STRING "" FORCE)
+set(CMAKE_Fortran_STANDARD_LIBRARIES "${mpi_shim} -L${mpi_libdir} -Wl,-rpath,${mpi_libdir} -lmpi_mpifh -lmpi" CACHE STRING "" FORCE)
 set(FortranCInterface_VERIFIED_C  TRUE           CACHE BOOL     "" FORCE)
 set(FortranCInterface_VERIFIED_CXX TRUE           CACHE BOOL     "" FORCE)
 
@@ -486,16 +493,25 @@ do_lfortran() {
     fi
 
 
+    local lf_iso_dir; lf_iso_dir=$(find_lfortran_iso_dir "$real_lfortran")
+    info "ISO_Fortran_binding.h: $lf_iso_dir"
+
     # Recompile stubs with current lfortran version
-    # (mod file format changes between lfortran versions)
+    # (mod file format changes between lfortran versions).
+    # The mpi_f08 stub calls Open MPI through the C shim mpi_f08_shim.c,
+    # which reads the ISO_Fortran_binding descriptors that lfortran passes.
     local stubs_dir="${repo_root}/lfortran-stubs"
+    local mpicc; mpicc=$(command -v mpicc) || error "mpicc not found in PATH"
     step "Compiling lfortran stubs"
     pushd "$stubs_dir" > /dev/null
-    if "$real_lfortran" -c mpi_f08.f90 -o mpi_f08.o && \
-       "$real_lfortran" -c ieee_exceptions.f90 -o ieee_exceptions.o; then
+    # Absolute source paths: the .mod files record them, and lfortran -g
+    # reopens the module source when it compiles a program that uses it.
+    if "$real_lfortran" -c "$stubs_dir/mpi_f08.f90" -o mpi_f08.o && \
+       "$real_lfortran" -c "$stubs_dir/ieee_exceptions.f90" -o ieee_exceptions.o && \
+       OMPI_CC="$CC" "$mpicc" -O2 -I"$lf_iso_dir" -c mpi_f08_shim.c -o mpi_f08_shim.o; then
         success "Stubs compiled OK"
     else
-        error "Stub compilation failed — check lfortran-stubs/*.f90"
+        error "Stub compilation failed — check lfortran-stubs/*.f90 and mpi_f08_shim.c"
     fi
     popd > /dev/null
 
@@ -506,11 +522,9 @@ do_lfortran() {
     hdf5_mods=$(build_lfortran_hdf5_mods "$real_lfortran" "${repo_root}/lfortran-hdf5") || exit 1
     success "HDF5 Fortran modules: $hdf5_mods"
 
-    local cache_file; cache_file=$(write_lfortran_cmake_cache "$wrapper")
+    local cache_file
+    cache_file=$(write_lfortran_cmake_cache "$wrapper" "$stubs_dir/mpi_f08_shim.o" "$mpicc")
     info "CMake cache: $cache_file"
-
-    local lf_iso_dir; lf_iso_dir=$(find_lfortran_iso_dir "$real_lfortran")
-    info "ISO_Fortran_binding.h: $lf_iso_dir"
 
     do_configure "$wrapper" "$cache_file" "$lf_iso_dir"
     ninja -C build -j"$NPROC"
